@@ -1,0 +1,6 @@
+
+/Spoofy/bin
+/Spoofy/obj
+/Spoofy/data/*
+!Spoofy/data/.gitkeep 
+Spoofy/Program.txt
