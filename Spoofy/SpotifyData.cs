@@ -1,5 +1,7 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using MsgPack.Serialization;
 using SpotifyAPI.Web;
 using SpotifyAPI.Web.Http;
 
@@ -8,7 +10,7 @@ namespace Spoofy;
 class SpotifyData
 {
     public List<SpotifyPlay> UserInfo { get; }
-    public Dictionary<string, SimpleTrack> TrackInfo { get; }
+    public Dictionary<string, SimpleTrack> TrackInfo { get; set; }
     private SpotifyClient APIClient;
     private List<Task> APITaskList = new();
 
@@ -26,24 +28,26 @@ class SpotifyData
         if (!File.Exists(tokenPath))
             File.Create(tokenPath);
 
-        string token = File.ReadAllText(tokenPath);
+        string[] fileData = File.ReadAllText(tokenPath).Split("\n");
+
+        string token = fileData[0];
+        long tokenCreationDate = Convert.ToInt64(fileData[1]);
+
         var clientConfig = SpotifyClientConfig.CreateDefault();
 
         // Check if we have a saved token
         if (!string.IsNullOrEmpty(token))
         {
-            // Test if the token is still valid
-            try
+            if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - tokenCreationDate < 3550)
             {
+                Console.WriteLine(
+                    $"Existing token is valid, has {3600 - (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - tokenCreationDate)} seconds until expiration."
+                );
                 APIClient = new SpotifyClient(clientConfig.WithToken(token));
-                APIClient.UserProfile.Current();
-                Console.WriteLine("Existing token is valid.");
                 return;
             }
-            catch (APIUnauthorizedException)
-            {
-                Console.WriteLine("Token is invalid, requesting a new one.");
-            }
+
+            Console.WriteLine("Token is invalid, requesting a new one.");
         }
 
         // Request a new token since we either don't have one or the old one is invalid
@@ -51,7 +55,11 @@ class SpotifyData
         var response = new OAuthClient(clientConfig).RequestToken(request).Result;
 
         // Save the new token
-        File.WriteAllText(tokenPath, response.AccessToken);
+        File.Delete(tokenPath);
+        File.WriteAllText(
+            tokenPath,
+            $"{response.AccessToken}\n{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}"
+        );
 
         // Initialize the Spotify client with the new token
         APIClient = new SpotifyClient(clientConfig.WithToken(response.AccessToken));
@@ -70,6 +78,7 @@ class SpotifyData
         UserInfo.RemoveAll(playedTrack => playedTrack.TrackID == null);
 
         List<string> SpotifyURIList = new List<string>();
+        OpenTrackInfo($"{AppDomain.CurrentDomain.BaseDirectory}/data");
 
         foreach (SpotifyPlay playedTrack in UserInfo)
         {
@@ -88,7 +97,8 @@ class SpotifyData
             }
         }
 
-        APITaskList.Add(RequestAndParseTrack(SpotifyURIList)); // make one more call for the remaining songs
+        if (SpotifyURIList.Count > 0)
+            APITaskList.Add(RequestAndParseTrack(SpotifyURIList)); // make one more call for the remaining songs
 
         await Task.WhenAll(APITaskList);
     }
@@ -96,7 +106,7 @@ class SpotifyData
     public async Task RequestAndParseTrack(List<string> trackIDList)
     {
         TracksRequest APIRequest = new TracksRequest(trackIDList);
-        TracksResponse APIResponse = await APIClient.Tracks.GetSeveral(APIRequest);
+        TracksResponse APIResponse = APIClient.Tracks.GetSeveral(APIRequest).Result;
 
         foreach (SimpleTrack trackData in ParseToSimpleTrack(APIResponse))
         {
@@ -134,6 +144,26 @@ class SpotifyData
         }
 
         return simpleTrackData;
+    }
+
+    public void SaveTrackInfo(string pathToData = @"/data")
+    {
+        MessagePackSerializer dictSerializer = MessagePackSerializer.Get<object>();
+        MemoryStream packedFileData = new MemoryStream();
+        dictSerializer.Pack(packedFileData, TrackInfo);
+        File.WriteAllBytes($"{pathToData}/TrackInfo.msgpack", packedFileData.ToArray());
+    }
+
+    void OpenTrackInfo(string pathToData = @"/data")
+    {
+        MessagePackSerializer dictSerializer = MessagePackSerializer.Get<
+            Dictionary<string, SimpleTrack>
+        >();
+        TrackInfo =
+            (Dictionary<string, SimpleTrack>)
+                dictSerializer.Unpack(
+                    new MemoryStream(File.ReadAllBytes($"{pathToData}/TrackInfo.msgpack"))
+                );
     }
 }
 
