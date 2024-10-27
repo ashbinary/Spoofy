@@ -9,40 +9,37 @@ public class Program
 {
     public static void Main(string[] args)
     {
-        SpotifyParser trackData = new SpotifyParser();
-        string dataFolder = $"{AppDomain.CurrentDomain.BaseDirectory}/data";
+        string dataFolder = @"C:\Projects\Spoofy\Spoofy\data";
 
         INIFile APIConfig = new INIFile($"{dataFolder}/client.ini");
-        trackData.SetupAPI(
-            APIConfig.IniReadValue("keys", "client_id"),
-            APIConfig.IniReadValue("keys", "client_secret")
-        );
 
         long startTime = Stopwatch.GetTimestamp();
-        trackData.PopulateTrackData(dataFolder).GetAwaiter().GetResult();
-        TimeSpan elapsedTime = Stopwatch.GetElapsedTime(startTime);
-        Console.WriteLine($"Completed populating track info in {elapsedTime}");
-    }
+        SpotifyData parsedData = SpotifyParser
+            .PopulateTrackData(
+                APIConfig.IniReadValue("keys", "client_id"),
+                APIConfig.IniReadValue("keys", "client_secret"),
+                dataFolder
+            )
+            .GetAwaiter()
+            .GetResult();
+        parsedData.SaveTrackInfo(dataFolder);
+        Console.WriteLine(
+            $"Completed populating track info in {Stopwatch.GetElapsedTime(startTime)}"
+        );
 
-    public static string ToHumanReadableString(TimeSpan t)
-    {
-        if (t.TotalSeconds <= 1)
-        {
-            return $@"{t:s\.ff} seconds";
-        }
-        if (t.TotalMinutes <= 1)
-        {
-            return $@"{t:%s} seconds";
-        }
-        if (t.TotalHours <= 1)
-        {
-            return $@"{t:%m} minutes";
-        }
-        if (t.TotalDays <= 1)
-        {
-            return $@"{t:%h} hours";
-        }
+        var totalListens = parsedData.GetTotalAlbumListens().OrderByDescending(x => x.Value);
 
-        return $@"{t:%d} days";
+        int amountToPrint = 20;
+        int a = 0;
+
+        foreach (KeyValuePair<string, int> spotifyData in totalListens)
+        {
+            Console.WriteLine(
+                $"{spotifyData.Key} - {spotifyData.Value} listens"
+            );
+            a++;
+            if (a > 20)
+                break;
+        }
     }
 }

@@ -5,8 +5,8 @@ namespace Spoofy.Handlers;
 
 static class SpotifyParser
 {
-    private static SpotifyClient APIClient; 
-    private static List<Task> APITaskList = new();
+    private static SpotifyClient APIClient;
+    private static readonly List<Task> APITaskList = new();
 
     // Sets up the Spotify API client
     public static void SetupAPI(string clientID, string clientSecret)
@@ -25,9 +25,14 @@ static class SpotifyParser
         var clientConfig = SpotifyClientConfig.CreateDefault(); // Default Spotify API config
 
         // Use the existing token if it's still valid (less than ~1 hour old)
-        if (!string.IsNullOrEmpty(token) && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - tokenCreationDate < 3550)
+        if (
+            !string.IsNullOrEmpty(token)
+            && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - tokenCreationDate < 3550
+        )
         {
-            Console.WriteLine($"Existing token is valid, expires in {3600 - (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - tokenCreationDate)} seconds.");
+            Console.WriteLine(
+                $"Existing token is valid, expires in {3600 - (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - tokenCreationDate)} seconds."
+            );
             APIClient = new SpotifyClient(clientConfig.WithToken(token));
             return; // Exit method if token is valid
         }
@@ -51,24 +56,37 @@ static class SpotifyParser
     }
 
     // Loads track data and fetches more info from the API if needed
-    public static async Task PopulateTrackData(this SpotifyData spotifyData, string pathToData = @"/data")
+    public static async Task<SpotifyData> PopulateTrackData(
+        string clientID,
+        string clientSecret,
+        string pathToData = @"/data"
+    )
     {
+        SpotifyData spotifyData = new SpotifyData();
+        SetupAPI(clientID, clientSecret);
+
         DirectoryInfo dataDirectory = new DirectoryInfo(pathToData); // Directory with data files
 
         // Read each JSON file in the directory and add track data to UserInfo
         foreach (FileInfo fileData in dataDirectory.GetFiles("*.json"))
         {
-            spotifyData.UserInfo.AddRange(JsonSerializer.Deserialize<List<SpotifyPlay>>(fileData.OpenRead()));
+            spotifyData.UserInfo.AddRange(
+                JsonSerializer.Deserialize<List<SpotifyPlay>>(fileData.OpenRead())
+            );
         }
 
         // Remove entries with null TrackID
-        spotifyData.UserInfo.RemoveAll(track  => track.TrackID == null);
+        spotifyData.UserInfo.RemoveAll(track => track.TrackID == null);
 
-        List<string> SpotifyURIList = new List<string>(); // List to store track URIs
+        List<string> SpotifyURIList = []; // List to store track URIs
+
+        Console.WriteLine(pathToData);
 
         // Load track info if a saved file exists
         if (File.Exists(Path.Combine(pathToData, "TrackInfo.msgpack")))
-            TrackExtensions.OpenTrackInfo(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data"));
+            spotifyData.TrackInfo = TrackExtensions.OpenTrackInfo(
+                pathToData
+            );
 
         // Go through each track and prepare to request details for missing ones
         foreach (SpotifyPlay playedTrack in spotifyData.UserInfo)
@@ -76,12 +94,15 @@ static class SpotifyParser
             playedTrack.TrackID = playedTrack.TrackID.Replace("spotify:track:", ""); // Remove URI prefix
 
             // Add to TrackInfo and URI list if not already present
-            if (playedTrack.TrackID != null && !spotifyData.TrackInfo.ContainsKey(playedTrack.TrackID))
+            if (
+                playedTrack.TrackID != null
+                && !spotifyData.TrackInfo.ContainsKey(playedTrack.TrackID)
+            )
             {
-                spotifyData.TrackInfo.Add(playedTrack.TrackID, new SimpleTrack()); // Placeholder for track data
+                spotifyData.TrackInfo.Add(playedTrack.TrackID, new FullTrack()); // Placeholder for track data
                 SpotifyURIList.Add(playedTrack.TrackID);
 
-                // If we reach 50 tracks, process the list
+                // If we reach 50 tracks (max for Spotify GetSeveral tracks), process the list
                 if (SpotifyURIList.Count == 50)
                 {
                     APITaskList.Add(spotifyData.RequestAndParseTrack(SpotifyURIList));
@@ -95,16 +116,21 @@ static class SpotifyParser
             APITaskList.Add(spotifyData.RequestAndParseTrack(SpotifyURIList));
 
         await Task.WhenAll(APITaskList); // Wait for all API tasks to finish
+
+        return spotifyData;
     }
 
     // Requests track info from Spotify and updates TrackInfo
-    public static async Task RequestAndParseTrack(this SpotifyData spotifyData, List<string> trackIDList)
+    public static async Task RequestAndParseTrack(
+        this SpotifyData spotifyData,
+        List<string> trackIDList
+    )
     {
-        var APIRequest = new TracksRequest(trackIDList); // Create request for multiple tracks
+        var APIRequest = new TracksRequest(trackIDList);
         TracksResponse APIResponse = await APIClient.Tracks.GetSeveral(APIRequest); // Send request
 
         // Add each track's info to TrackInfo
-        foreach (SimpleTrack trackData in APIResponse.ParseToSimpleTrack())
+        foreach (FullTrack trackData in APIResponse.Tracks)
         {
             lock (spotifyData.TrackInfo) // Ensure only one thread updates at a time
                 spotifyData.TrackInfo[trackData.Id] = trackData;

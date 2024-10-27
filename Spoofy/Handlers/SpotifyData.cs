@@ -6,7 +6,13 @@ namespace Spoofy.Handlers;
 class SpotifyData
 {
     public List<SpotifyPlay> UserInfo { get; set; }
-    public Dictionary<string, SimpleTrack> TrackInfo { get; set; }
+    public Dictionary<string, FullTrack> TrackInfo { get; set; }
+
+    public SpotifyData()
+    {
+        UserInfo = [];
+        TrackInfo = [];
+    }
 
     public void SaveTrackInfo(string pathToData = @"/data")
     {
