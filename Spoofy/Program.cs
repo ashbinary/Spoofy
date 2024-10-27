@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using Spoofy.Handlers;
 using SpotifyAPI.Web;
 
 namespace Spoofy;
@@ -8,7 +9,7 @@ public class Program
 {
     public static void Main(string[] args)
     {
-        SpotifyData trackData = new SpotifyData();
+        SpotifyParser trackData = new SpotifyParser();
         string dataFolder = $"{AppDomain.CurrentDomain.BaseDirectory}/data";
 
         INIFile APIConfig = new INIFile($"{dataFolder}/client.ini");
@@ -18,10 +19,9 @@ public class Program
         );
 
         long startTime = Stopwatch.GetTimestamp();
-        trackData.PopulateTrackData(dataFolder);
+        trackData.PopulateTrackData(dataFolder).GetAwaiter().GetResult();
         TimeSpan elapsedTime = Stopwatch.GetElapsedTime(startTime);
         Console.WriteLine($"Completed populating track info in {elapsedTime}");
-        trackData.SaveTrackInfo(dataFolder);
     }
 
     public static string ToHumanReadableString(TimeSpan t)
