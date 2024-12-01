@@ -20,7 +20,7 @@ static class SpotifyAnalyzer
     {
         return data.GetTotalListens(
             playedTrack => true,
-            playedTrack => playedTrack.TrackID,
+            playedTrack => data.TrackInfo[playedTrack.TrackID].Uri,
             playedTrack => playedTrack.TimeListened
         );
     }

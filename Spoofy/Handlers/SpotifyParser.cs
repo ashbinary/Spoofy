@@ -138,4 +138,30 @@ static class SpotifyParser
             Console.WriteLine($"Added {trackData.Name} to database!"); // Log each added track
         }
     }
+
+
+
+    // Requests track info from Spotify and updates TrackInfo
+    public static async Task<List<FullAlbum>> RequestAndReturnAlbum(
+        List<string> albumIDList
+    )
+    {
+        var APIRequest = new AlbumsRequest(albumIDList);
+        AlbumsResponse APIResponse = await APIClient.Albums.GetSeveral(APIRequest); // Send request
+
+        // Add each track's info to TrackInfo
+        return APIResponse.Albums;
+    }
+
+    // Requests track info from Spotify and updates TrackInfo
+    public static async Task<List<FullTrack>> RequestAndReturnTrack(
+        List<string> albumIDList
+    )
+    {
+        var APIRequest = new TracksRequest(albumIDList);
+        TracksResponse APIResponse = await APIClient.Tracks.GetSeveral(APIRequest); // Send request
+
+        // Add each track's info to TrackInfo
+        return APIResponse.Tracks;
+    }
 }
