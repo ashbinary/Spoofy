@@ -1,3 +1,5 @@
+using SpotifyAPI.Web.Http;
+
 namespace Spoofy.Handlers;
 
 static class SpotifyAnalyzer
@@ -11,7 +13,7 @@ static class SpotifyAnalyzer
             playedTrack =>
                 data.TrackInfo[playedTrack.TrackID].DurationMs * (timeBarrier / 100.0)
                 < playedTrack.TimeListened,
-            playedTrack => playedTrack.TrackID,
+            playedTrack => data.TrackInfo[playedTrack.TrackID].Uri,
             playedTrack => 1
         );
     }
@@ -64,11 +66,28 @@ static class SpotifyAnalyzer
             {
                 string key = keySelector(playedTrack);
                 TotalListens[key] =
-                    TotalListens.GetValueOrDefault(key, 0)
-                    + incrementSelector(playedTrack);
+                    TotalListens.GetValueOrDefault(key, 0) + incrementSelector(playedTrack);
             }
         }
 
         return TotalListens;
+    }
+
+    public static Dictionary<string, int> GetTotalDynamicListens(
+        this SpotifyData data,
+        RequestType type
+    )
+    {
+        switch (type)
+        {
+            case RequestType.Track:
+                return GetTotalTrackListens(data);
+            case RequestType.Album:
+                return GetTotalAlbumListens(data);
+            case RequestType.Artist:
+                return null; // TBD
+        }
+
+        return null;
     }
 }

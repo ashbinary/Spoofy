@@ -5,7 +5,7 @@ namespace Spoofy.Handlers;
 
 static class SpotifyParser
 {
-    private static SpotifyClient APIClient;
+    public static SpotifyClient APIClient; // Probably not a good idea to make this accessible? But who cares
     private static readonly List<Task> APITaskList = new();
 
     // Sets up the Spotify API client
@@ -30,14 +30,9 @@ static class SpotifyParser
             && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - tokenCreationDate < 3550
         )
         {
-            Console.WriteLine(
-                $"Existing token is valid, expires in {3600 - (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - tokenCreationDate)} seconds."
-            );
             APIClient = new SpotifyClient(clientConfig.WithToken(token));
             return; // Exit method if token is valid
         }
-
-        Console.WriteLine("Token is invalid, requesting a new one.");
 
         // Request a new token if none is valid
         var request = new ClientCredentialsRequest(clientID, clientSecret);
@@ -52,7 +47,6 @@ static class SpotifyParser
 
         // Set up the Spotify client with the new token
         APIClient = new SpotifyClient(clientConfig.WithToken(response.AccessToken));
-        Console.WriteLine("New token acquired and saved.");
     }
 
     // Loads track data and fetches more info from the API if needed
@@ -80,13 +74,9 @@ static class SpotifyParser
 
         List<string> SpotifyURIList = []; // List to store track URIs
 
-        Console.WriteLine(pathToData);
-
         // Load track info if a saved file exists
         if (File.Exists(Path.Combine(pathToData, "TrackInfo.msgpack")))
-            spotifyData.TrackInfo = TrackExtensions.OpenTrackInfo(
-                pathToData
-            );
+            spotifyData.TrackInfo = TrackExtensions.OpenTrackInfo(pathToData);
 
         // Go through each track and prepare to request details for missing ones
         foreach (SpotifyPlay playedTrack in spotifyData.UserInfo)
@@ -126,42 +116,12 @@ static class SpotifyParser
         List<string> trackIDList
     )
     {
-        var APIRequest = new TracksRequest(trackIDList);
-        TracksResponse APIResponse = await APIClient.Tracks.GetSeveral(APIRequest); // Send request
-
+        List<FullTrack> trackDataList = await SpotifyRequest.RequestAndReturnTrack(trackIDList);
         // Add each track's info to TrackInfo
-        foreach (FullTrack trackData in APIResponse.Tracks)
+        foreach (FullTrack trackData in trackDataList)
         {
             lock (spotifyData.TrackInfo) // Ensure only one thread updates at a time
                 spotifyData.TrackInfo[trackData.Id] = trackData;
-
-            Console.WriteLine($"Added {trackData.Name} to database!"); // Log each added track
         }
-    }
-
-
-
-    // Requests track info from Spotify and updates TrackInfo
-    public static async Task<List<FullAlbum>> RequestAndReturnAlbum(
-        List<string> albumIDList
-    )
-    {
-        var APIRequest = new AlbumsRequest(albumIDList);
-        AlbumsResponse APIResponse = await APIClient.Albums.GetSeveral(APIRequest); // Send request
-
-        // Add each track's info to TrackInfo
-        return APIResponse.Albums;
-    }
-
-    // Requests track info from Spotify and updates TrackInfo
-    public static async Task<List<FullTrack>> RequestAndReturnTrack(
-        List<string> albumIDList
-    )
-    {
-        var APIRequest = new TracksRequest(albumIDList);
-        TracksResponse APIResponse = await APIClient.Tracks.GetSeveral(APIRequest); // Send request
-
-        // Add each track's info to TrackInfo
-        return APIResponse.Tracks;
     }
 }
