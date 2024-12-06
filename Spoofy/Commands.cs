@@ -41,44 +41,59 @@ public class Commands : ICommand
             .OrderByDescending(kvp => kvp.Value)
             .Take(RequestAmount);
 
-        List<string> requestKeys = totalListens.Select(kvp => kvp.Key[(9 + RequestEnum.ToString().Length)..]).ToList();
-        // Splits it into a certain value so it can properly go through Spotify.
-        List<List<string>> requestKeysSplit = Utilities.SplitList(requestKeys, RequestEnum != RequestType.Album ? 50 : 20);
-
-        switch (RequestEnum)
+        Type requestType = RequestEnum switch
         {
-            case RequestType.Track:
-                foreach (List<string> requests in requestKeysSplit)
-                {
-                    DataResponseList.AddRange(await SpotifyRequest.RequestAndReturnTrack(requests));
-                }
-                break;
-            default:
-                break;
+            RequestType.Track => typeof(FullTrack),
+            RequestType.Album => typeof(FullAlbum),
+            RequestType.Artist => typeof(FullArtist),
+        };
+
+        int prefixLength = 9 + RequestEnum.ToString().Length;
+        List<string> requestKeys = totalListens.Select(kvp => kvp.Key[prefixLength..]).ToList();
+
+        // Splits it into a certain value so it can properly go through Spotify.
+        List<List<string>> requestKeysSplit = Utilities.SplitList(
+            requestKeys,
+            RequestEnum != RequestType.Album ? 50 : 20
+        );
+
+        foreach (List<string> requests in requestKeysSplit)
+        {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
+            dynamic Responses = RequestEnum switch
+            {
+                RequestType.Track => await SpotifyRequest.RequestAndReturnTrack(requests),
+                RequestType.Album => await SpotifyRequest.RequestAndReturnAlbum(requests),
+                RequestType.Artist => await SpotifyRequest.RequestAndReturnArtist(requests),
+                _ => null,
+            };
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
+            DataResponseList.AddRange(Responses);
         }
 
-        Console.WriteLine("---------------------------------------------------------------------------------------------------------------------\n                                   TOP LISTENED ALBUMS\n---------------------------------------------------------------------------------------------------------------------");
-
-        int a = 1;
+        int CurrentRank = 1; // Iterated upon for rankings.
 
         foreach (KeyValuePair<string, int> spotifyData in totalListens)
         {
-            var timeListened = TimeSpan.FromMilliseconds(spotifyData.Value);
-            string timeListenedParsed = string.Format("{0:D2}h:{1:D2}m:{2:D2}s.{3:D3}ms", 
-                        timeListened.Days * 24 + timeListened.Hours,
-                        timeListened.Minutes, 
-                        timeListened.Seconds, 
-                        timeListened.Milliseconds);
+            // var timeListened = TimeSpan.FromMilliseconds(spotifyData.Value);
+            // string timeListenedParsed = string.Format("{0:D2}h:{1:D2}m:{2:D2}s.{3:D3}ms",
+            //             timeListened.Days * 24 + timeListened.Hours,
+            //             timeListened.Minutes,
+            //             timeListened.Seconds,
+            //             timeListened.Milliseconds);
 
-            var album = DataResponseList.OfType<FullTrack>().FirstOrDefault(album => album.Uri == spotifyData.Key);
-            var result = album?.Name.Length > 25
-                ? album.Name.Substring(0, 22) + "..."
-                : album?.Name;
+            // to do: how do i support hangul here
+            var album = DataResponseList.ReturnFromUri(spotifyData.Key, RequestEnum);
+            var result =
+                album?.Name.Length > 20
+                    ? album.Name.Substring(0, 18) + "..."
+                    : album?.Name ?? "Unknown";
 
             Console.WriteLine(
-                $"#{a, -3}: {result.PadLeft((32 + result.Length) / 2),-32} | {DataResponseList.OfType<FullTrack>().FirstOrDefault(album => album.Uri == spotifyData.Key).Artists[0].Name.PadLeft((26 + DataResponseList.OfType<FullTrack>().FirstOrDefault(album => album.Uri == spotifyData.Key).Artists[0].Name.Length) / 2),-26} | {spotifyData.Value, 20} listens"
+                $"#{CurrentRank, -3}: {result, -32} | {album?.Artists[0].Name ?? "Unknown", -26} | {spotifyData.Value, 20} listens"
             );
-            a++;
+
+            CurrentRank++;
         }
         // return default;
     }
@@ -88,5 +103,5 @@ public enum RequestType
 {
     Track,
     Album,
-    Artist
+    Artist,
 }
