@@ -4,4 +4,4 @@
 /Spoofy/data/*
 !Spoofy/data/.gitkeep
 Spoofy/token
-.vscode/launch.json
+.vscode/

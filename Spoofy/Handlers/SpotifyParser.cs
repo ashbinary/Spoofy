@@ -15,7 +15,7 @@ static class SpotifyParser
 
         // Check if the token file exists, create it if it doesn't
         if (!File.Exists(tokenPath))
-            File.Create(tokenPath);
+            using (File.Create(tokenPath)) { } // Incredibly funny workaround to the I/O error here
 
         // Read token and token creation date from file
         string[] fileData = File.ReadAllText(tokenPath).Split("\n");
