@@ -2,7 +2,7 @@
    <img src="logo.png" alt="Icon" />
 </p>
 
-**Spoofy** is  an asynchronous Spotify extended streaming history parser intended to be as fast as possible while providing detailed statistic, built using [CliFx](https://github.com/Tyrrrz/CliFx) for the CLI. 
+**Spoofy** is  an asynchronous Spotify extended streaming history parser intended to be as fast as possible while providing detailed statistic, built using [CliFx](https://github.com/Tyrrrz/CliFx) for the frontend. 
 
 ## Usage
 Spoofy supports analyzing data regarding tracks, albums, and artists, showing both streams and time listened.
