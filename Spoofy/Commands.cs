@@ -27,16 +27,11 @@ public class Commands : ICommand
         string ClientID = APIConfig.IniReadValue("keys", "client_id");
         string ClientSecret = APIConfig.IniReadValue("keys", "client_secret");
 
-        SpotifyData parsedData = SpotifyParser
-            .PopulateTrackData(ClientID, ClientSecret, DataPath)
-            .GetAwaiter()
-            .GetResult();
-        parsedData.SaveTrackInfo(DataPath);
-
+        await SpotifyParser.PopulateTrackData(ClientID, ClientSecret, DataPath);
         List<object> DataResponseList = new();
 
         // Incredibly overcomplicated way to sort and order all the data and cut off the spotify:xxxxx: prefix for proper parsing using LINQ.
-        var totalListens = parsedData
+        var totalListens = SpotifyAnalyzer
             .GetTotalDynamicListens(RequestEnum)
             .OrderByDescending(kvp => kvp.Value)
             .Take(RequestAmount);
@@ -90,7 +85,7 @@ public class Commands : ICommand
                     : album?.Name ?? "Unknown";
 
             Console.WriteLine(
-                $"#{CurrentRank, -3}: {result, -32} | {album?.Artists[0].Name ?? "Unknown", -26} | {spotifyData.Value, 20} listens"
+                $"#{CurrentRank, -3}: {album?.Name + " - " + album?.Artists[0].Name ?? "Unknown", -50} | {spotifyData.Value} listens"
             );
 
             CurrentRank++;

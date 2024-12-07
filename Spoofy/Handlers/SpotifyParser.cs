@@ -50,13 +50,12 @@ static class SpotifyParser
     }
 
     // Loads track data and fetches more info from the API if needed
-    public static async Task<SpotifyData> PopulateTrackData(
+    public static async Task PopulateTrackData(
         string clientID,
         string clientSecret,
         string pathToData = @"/data"
     )
     {
-        SpotifyData spotifyData = new SpotifyData();
         SetupAPI(clientID, clientSecret);
 
         DirectoryInfo dataDirectory = new DirectoryInfo(pathToData); // Directory with data files
@@ -64,38 +63,38 @@ static class SpotifyParser
         // Read each JSON file in the directory and add track data to UserInfo
         foreach (FileInfo fileData in dataDirectory.GetFiles("*.json"))
         {
-            spotifyData.UserInfo.AddRange(
+            SpotifyAnalyzer.spotifyData.UserInfo.AddRange(
                 JsonSerializer.Deserialize<List<SpotifyPlay>>(fileData.OpenRead())
             );
         }
 
         // Remove entries with null TrackID
-        spotifyData.UserInfo.RemoveAll(track => track.TrackID == null);
+        SpotifyAnalyzer.spotifyData.UserInfo.RemoveAll(track => track.TrackID == null);
 
         List<string> SpotifyURIList = []; // List to store track URIs
 
         // Load track info if a saved file exists
         if (File.Exists(Path.Combine(pathToData, "TrackInfo.msgpack")))
-            spotifyData.TrackInfo = TrackExtensions.OpenTrackInfo(pathToData);
+            SpotifyAnalyzer.spotifyData.TrackInfo = TrackExtensions.OpenTrackInfo(pathToData);
 
         // Go through each track and prepare to request details for missing ones
-        foreach (SpotifyPlay playedTrack in spotifyData.UserInfo)
+        foreach (SpotifyPlay playedTrack in SpotifyAnalyzer.spotifyData.UserInfo)
         {
             playedTrack.TrackID = playedTrack.TrackID.Replace("spotify:track:", ""); // Remove URI prefix
 
             // Add to TrackInfo and URI list if not already present
             if (
                 playedTrack.TrackID != null
-                && !spotifyData.TrackInfo.ContainsKey(playedTrack.TrackID)
+                && !SpotifyAnalyzer.spotifyData.TrackInfo.ContainsKey(playedTrack.TrackID)
             )
             {
-                spotifyData.TrackInfo.Add(playedTrack.TrackID, new FullTrack()); // Placeholder for track data
+                SpotifyAnalyzer.spotifyData.TrackInfo.Add(playedTrack.TrackID, new FullTrack()); // Placeholder for track data
                 SpotifyURIList.Add(playedTrack.TrackID);
 
                 // If we reach 50 tracks (max for Spotify GetSeveral tracks), process the list
                 if (SpotifyURIList.Count == 50)
                 {
-                    APITaskList.Add(spotifyData.RequestAndParseTrack(SpotifyURIList));
+                    APITaskList.Add(RequestAndParseTrack(SpotifyURIList));
                     SpotifyURIList.Clear(); // Clear URI list
                 }
             }
@@ -103,16 +102,15 @@ static class SpotifyParser
 
         // Process any remaining tracks in the URI list
         if (SpotifyURIList.Count > 0)
-            APITaskList.Add(spotifyData.RequestAndParseTrack(SpotifyURIList));
+            APITaskList.Add(RequestAndParseTrack(SpotifyURIList));
 
         await Task.WhenAll(APITaskList); // Wait for all API tasks to finish
 
-        return spotifyData;
+        SpotifyAnalyzer.spotifyData.SaveTrackInfo(pathToData);
     }
 
     // Requests track info from Spotify and updates TrackInfo
     public static async Task RequestAndParseTrack(
-        this SpotifyData spotifyData,
         List<string> trackIDList
     )
     {
@@ -120,8 +118,8 @@ static class SpotifyParser
         // Add each track's info to TrackInfo
         foreach (FullTrack trackData in trackDataList)
         {
-            lock (spotifyData.TrackInfo) // Ensure only one thread updates at a time
-                spotifyData.TrackInfo[trackData.Id] = trackData;
+            lock (SpotifyAnalyzer.spotifyData.TrackInfo) // Ensure only one thread updates at a time
+                SpotifyAnalyzer.spotifyData.TrackInfo[trackData.Id] = trackData;
         }
     }
 }
