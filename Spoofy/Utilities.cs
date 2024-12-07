@@ -34,4 +34,17 @@ public static class Utilities
     {
         return data.OfType<T>().FirstOrDefault(item => (item as dynamic).Uri == uri);
     }
+
+    // Milliseconds -> Readable Time for Time Listened statistics
+    public static string ConvertToReadableTime(long ms)
+    {
+        var readableTimeSpan = TimeSpan.FromMilliseconds(ms);
+
+        return string.Format(
+            "{0:D2}h:{1:D2}m:{2:D2}s",
+            readableTimeSpan.Days * 24 + readableTimeSpan.Hours,
+            readableTimeSpan.Minutes,
+            readableTimeSpan.Seconds
+        );
+    }
 }

@@ -47,6 +47,26 @@ static class SpotifyAnalyzer
         );
     }
 
+    public static Dictionary<string, int> GetTotalArtistListens()
+    {
+        return GetTotalListens(
+            playedTrack =>
+                spotifyData.TrackInfo[playedTrack.TrackID].DurationMs * (timeBarrier / 100.0)
+                < playedTrack.TimeListened,
+            playedTrack => spotifyData.TrackInfo[playedTrack.TrackID].Artists[0].Uri,
+            playedTrack => 1
+        );
+    }
+
+    public static Dictionary<string, int> GetTotalArtistTimeListened()
+    {
+        return GetTotalListens(
+            playedTrack => true,
+            playedTrack => spotifyData.TrackInfo[playedTrack.TrackID].Artists[0].Uri,
+            playedTrack => playedTrack.TimeListened
+        );
+    }
+
     public static Dictionary<string, int> GetTotalListens(
         Func<SpotifyPlay, bool> condition,
         Func<SpotifyPlay, string> keySelector,
@@ -54,18 +74,6 @@ static class SpotifyAnalyzer
     )
     {
         Dictionary<string, int> TotalListens = new();
-
-        if (spotifyData == null)
-        {
-            Console.WriteLine("this tea");
-            throw new ArgumentNullException(nameof(spotifyData), "spotifyData cannot be null");
-        }
-
-        if (spotifyData.UserInfo == null)
-        {
-            Console.WriteLine("this tea 2");
-            throw new ArgumentNullException(nameof(spotifyData.UserInfo), "UserInfo cannot be null");
-        }
 
         foreach (SpotifyPlay playedTrack in spotifyData.UserInfo)
         {
@@ -81,16 +89,31 @@ static class SpotifyAnalyzer
         return TotalListens;
     }
 
-    public static Dictionary<string, int> GetTotalDynamicListens(RequestType type)
+    public static Dictionary<string, int> GetAllData(RequestType type, bool isTimeListened)
     {
-        switch (type)
+        if (isTimeListened)
         {
-            case RequestType.Track:
-                return GetTotalTrackListens();
-            case RequestType.Album:
-                return GetTotalAlbumListens();
-            case RequestType.Artist:
-                return null; // TBD
+            switch (type)
+            {
+                case RequestType.Track:
+                    return GetTotalTrackTimeListened();
+                case RequestType.Album:
+                    return GetTotalAlbumTimeListened();
+                case RequestType.Artist:
+                    return GetTotalArtistTimeListened();
+            }
+        }
+        else
+        {
+            switch (type)
+            {
+                case RequestType.Track:
+                    return GetTotalTrackListens();
+                case RequestType.Album:
+                    return GetTotalAlbumListens();
+                case RequestType.Artist:
+                    return GetTotalArtistListens();
+            }
         }
 
         return null;

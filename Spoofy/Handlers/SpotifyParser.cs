@@ -9,9 +9,9 @@ static class SpotifyParser
     private static readonly List<Task> APITaskList = new();
 
     // Sets up the Spotify API client
-    public static void SetupAPI(string clientID, string clientSecret)
+    public static void SetupAPI(string clientID, string clientSecret, string pathToData)
     {
-        string tokenPath = "token"; // Path to the token file
+        string tokenPath = $"{pathToData}/token"; // Path to the token file
 
         // Check if the token file exists, create it if it doesn't
         if (!File.Exists(tokenPath))
@@ -56,7 +56,7 @@ static class SpotifyParser
         string pathToData = @"/data"
     )
     {
-        SetupAPI(clientID, clientSecret);
+        SetupAPI(clientID, clientSecret, pathToData);
 
         DirectoryInfo dataDirectory = new DirectoryInfo(pathToData); // Directory with data files
 
@@ -110,9 +110,7 @@ static class SpotifyParser
     }
 
     // Requests track info from Spotify and updates TrackInfo
-    public static async Task RequestAndParseTrack(
-        List<string> trackIDList
-    )
+    public static async Task RequestAndParseTrack(List<string> trackIDList)
     {
         List<FullTrack> trackDataList = await SpotifyRequest.RequestAndReturnTrack(trackIDList);
         // Add each track's info to TrackInfo

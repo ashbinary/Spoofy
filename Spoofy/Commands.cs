@@ -1,5 +1,6 @@
 namespace Spoofy;
 
+using System.Reflection;
 using System.Threading.Tasks;
 using CliFx;
 using CliFx.Attributes;
@@ -12,13 +13,20 @@ using SpotifyAPI.Web.Http;
 public class Commands : ICommand
 {
     [CommandParameter(0, Description = "Track, album, or artist", Name = "type")]
-    public RequestType RequestEnum { get; init; } = RequestType.Track;
+    public required RequestType RequestEnum { get; init; } = RequestType.Track;
 
     [CommandOption("num", 'n', Description = "Amount of tracks / albums / artists to request.")]
-    public int RequestAmount { get; init; } = 200;
+    public int RequestAmount { get; init; } = 20;
 
     [CommandOption("path", 'p', Description = "Folder for the Spotify data files.")]
-    public string DataPath { get; init; } = @"C:\Projects\Spoofy\Spoofy\data";
+    public string DataPath { get; init; } = Path.Combine(Directory.GetCurrentDirectory(), "data");
+
+    [CommandOption(
+        "time",
+        't',
+        Description = "Get time listened for a number of tracks instead of the amount of listens."
+    )]
+    public bool IsTimeListened { get; init; } = false;
 
     public async ValueTask ExecuteAsync(IConsole console)
     {
@@ -32,7 +40,7 @@ public class Commands : ICommand
 
         // Incredibly overcomplicated way to sort and order all the data and cut off the spotify:xxxxx: prefix for proper parsing using LINQ.
         var totalListens = SpotifyAnalyzer
-            .GetTotalDynamicListens(RequestEnum)
+            .GetAllData(RequestEnum, IsTimeListened)
             .OrderByDescending(kvp => kvp.Value)
             .Take(RequestAmount);
 
@@ -66,31 +74,45 @@ public class Commands : ICommand
             DataResponseList.AddRange(Responses);
         }
 
+        console.Output.WriteLine(
+            $"+-----+---------------------------{(RequestEnum != RequestType.Artist ? "+---------------------------" : "")}+------------------+"
+        );
+        console.Output.WriteLine(
+            $"| #   | Song Name                 {(RequestEnum != RequestType.Artist ? "| Artist Name               " : "")}{(!IsTimeListened ? "| Listens          " : "| Time Listened    ")}|"
+        );
+        console.Output.WriteLine(
+            $"+-----+---------------------------{(RequestEnum != RequestType.Artist ? "+---------------------------" : "")}+------------------+"
+        );
+
         int CurrentRank = 1; // Iterated upon for rankings.
 
         foreach (KeyValuePair<string, int> spotifyData in totalListens)
         {
-            // var timeListened = TimeSpan.FromMilliseconds(spotifyData.Value);
-            // string timeListenedParsed = string.Format("{0:D2}h:{1:D2}m:{2:D2}s.{3:D3}ms",
-            //             timeListened.Days * 24 + timeListened.Hours,
-            //             timeListened.Minutes,
-            //             timeListened.Seconds,
-            //             timeListened.Milliseconds);
+            var response = DataResponseList.ReturnFromUri(spotifyData.Key, RequestEnum);
 
-            // to do: how do i support hangul here
-            var album = DataResponseList.ReturnFromUri(spotifyData.Key, RequestEnum);
-            var result =
-                album?.Name.Length > 20
-                    ? album.Name.Substring(0, 18) + "..."
-                    : album?.Name ?? "Unknown";
+            string responseName =
+                response?.Name.Length > 20
+                    ? response.Name.Substring(0, 18) + "..."
+                    : response?.Name ?? "Unknown";
 
-            Console.WriteLine(
-                $"#{CurrentRank, -3}: {album?.Name + " - " + album?.Artists[0].Name ?? "Unknown", -50} | {spotifyData.Value} listens"
+            string responseArtist = "";
+
+            if (RequestEnum != RequestType.Artist)
+                responseArtist =
+                    response?.Artists[0].Name.Length > 20
+                        ? response.Artists[0].Name.Substring(0, 18) + "..."
+                        : response?.Artists[0].Name ?? "Unknown";
+
+            console.Output.WriteLine(
+                $"| {CurrentRank, -3} | {responseName, -25}{(RequestEnum != RequestType.Artist ? " | " + responseArtist.PadRight(25) : "")} | {(IsTimeListened ? Utilities.ConvertToReadableTime(spotifyData.Value) : spotifyData.Value), -16} |"
             );
 
             CurrentRank++;
         }
-        // return default;
+
+        console.Output.WriteLine(
+            $"+-----+---------------------------{(RequestEnum != RequestType.Artist ? "+---------------------------" : "")}+------------------+"
+        );
     }
 }
 
