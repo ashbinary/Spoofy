@@ -1,5 +1,6 @@
 namespace Spoofy;
 
+using System.ComponentModel;
 using System.Reflection;
 using System.Threading.Tasks;
 using CliFx;
@@ -74,15 +75,34 @@ public class Commands : ICommand
             DataResponseList.AddRange(Responses);
         }
 
-        console.Output.WriteLine(
-            $"+-----+---------------------------{(RequestEnum != RequestType.Artist ? "+---------------------------" : "")}+------------------+"
-        );
-        console.Output.WriteLine(
-            $"| #   | Song Name                 {(RequestEnum != RequestType.Artist ? "| Artist Name               " : "")}{(!IsTimeListened ? "| Listens          " : "| Time Listened    ")}|"
-        );
-        console.Output.WriteLine(
-            $"+-----+---------------------------{(RequestEnum != RequestType.Artist ? "+---------------------------" : "")}+------------------+"
-        );
+        string[] boxTitles = ["#"];
+        string listenName = IsTimeListened ? "Time Listened" : "Listens";
+
+        int[] genericBoxSize = [5, 27, 27, 18];
+        Printer.BoxCount = 4;
+
+        switch (RequestEnum)
+        {
+            case RequestType.Track:
+                boxTitles = ["#", "Song Name", "Artist Name", listenName];
+                break;
+            case RequestType.Album:
+                boxTitles = ["#", "Album Name", "Artist Name", listenName];
+                break;
+            case RequestType.Artist:
+                boxTitles = ["#", "Artist Name", listenName];
+                Printer.BoxCount = 3;
+                genericBoxSize = [5, 27, 18];
+                break;
+            default:
+                break;
+        }
+
+        Printer.BoxSize = genericBoxSize;
+
+        Printer.PrintBoxLine();
+        Printer.PrintInfoLine(boxTitles);
+        Printer.PrintBoxLine();
 
         int CurrentRank = 1; // Iterated upon for rankings.
 
@@ -90,29 +110,43 @@ public class Commands : ICommand
         {
             var response = DataResponseList.ReturnFromUri(spotifyData.Key, RequestEnum);
 
-            string responseName =
-                response?.Name.Length > 20
-                    ? response.Name.Substring(0, 18) + "..."
-                    : response?.Name ?? "Unknown";
-
+            string responseName = Printer.HandleLength(response?.Name);
             string responseArtist = "";
 
             if (RequestEnum != RequestType.Artist)
-                responseArtist =
-                    response?.Artists[0].Name.Length > 20
-                        ? response.Artists[0].Name.Substring(0, 18) + "..."
-                        : response?.Artists[0].Name ?? "Unknown";
+                responseArtist = Printer.HandleLength(response?.Artists[0].Name);
 
-            console.Output.WriteLine(
-                $"| {CurrentRank, -3} | {responseName, -25}{(RequestEnum != RequestType.Artist ? " | " + responseArtist.PadRight(25) : "")} | {(IsTimeListened ? Utilities.ConvertToReadableTime(spotifyData.Value) : spotifyData.Value), -16} |"
-            );
+            string[] boxData =
+            [
+                CurrentRank.ToString(),
+                responseName,
+                "unused",
+                spotifyData.Value.ToString(),
+            ];
+
+            if (IsTimeListened)
+                boxData[3] = Utilities.ConvertToReadableTime(spotifyData.Value);
+
+            if (RequestEnum == RequestType.Artist)
+                Utilities.RemoveAt(ref boxData, 2);
+            else
+                boxData[2] = responseArtist;
+
+            Printer.BoxSize =
+            [
+                5,
+                27 - responseName.Count(Printer.IsDoubleWidth),
+                (RequestEnum == RequestType.Artist ? 18 : 27)
+                    - responseArtist.Count(Printer.IsDoubleWidth),
+                18,
+            ];
+
+            Printer.PrintInfoLine(boxData);
 
             CurrentRank++;
         }
 
-        console.Output.WriteLine(
-            $"+-----+---------------------------{(RequestEnum != RequestType.Artist ? "+---------------------------" : "")}+------------------+"
-        );
+        Printer.PrintBoxLine();
     }
 }
 
