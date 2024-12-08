@@ -75,7 +75,7 @@ static class SpotifyParser
 
         // Load track info if a saved file exists
         if (File.Exists(Path.Combine(pathToData, "TrackInfo.msgpack")))
-            SpotifyAnalyzer.spotifyData.TrackInfo = TrackExtensions.OpenTrackInfo(pathToData);
+            SpotifyAnalyzer.spotifyData.TrackInfo = Utilities.OpenTrackInfo(pathToData);
 
         // Go through each track and prepare to request details for missing ones
         foreach (SpotifyPlay playedTrack in SpotifyAnalyzer.spotifyData.UserInfo)
